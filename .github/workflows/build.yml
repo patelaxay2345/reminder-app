@@ -18,21 +18,38 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v3
+      - name: Download Gradle wrapper jar
+        run: |
+          mkdir -p gradle/wrapper
+          curl -sSL -o gradle/wrapper/gradle-wrapper.jar \
+            https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar
 
-      - name: Generate Gradle wrapper
-        run: gradle wrapper --gradle-version 8.4 --distribution-type bin
-
-      - name: Make gradlew executable
-        run: chmod +x ./gradlew
+      - name: Create gradlew script
+        run: |
+          cat > gradlew << 'GRADLEW_EOF'
+          #!/usr/bin/env sh
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          exec java -classpath "$DIR/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
+          GRADLEW_EOF
+          chmod +x gradlew
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK artifact
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: ReminderApp-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 30
+
+      - name: Upload build logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            build/reports/
+            app/build/reports/
+          retention-days: 7
